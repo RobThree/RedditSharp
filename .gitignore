@@ -9,3 +9,5 @@ TestResults/
 *.mdf
 *.psess
 *.vsp
+*.nupkg
+packages/*/*
