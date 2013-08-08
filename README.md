@@ -59,11 +59,4 @@ while (true)
 
 ## Development
 
-RedditSharp is developed with the following workflow:
-
-1. Nothing happens for weeks
-2. Someone needs it to do something it doesn't already do
-3. That person implements that something and submits a pull request
-4. Repeat
-
-If it doesn't have a feature that you want it to have, add it! The code isn't that scary.
+See [RedditSharp](https://github.com/SirCmpwn/RedditSharp#redditsharp)
