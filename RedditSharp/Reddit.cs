@@ -22,6 +22,8 @@ namespace RedditSharp
         private const string SubredditAboutUrl = "/r/{0}/about.json";
         private const string ComposeMessageUrl = "/api/compose";
         private const string RegisterAccountUrl = "/api/register";
+        private const string GetThingUrl = "/by_id/{0}.json";
+        private const string GetCommentUrl = "/r/{0}/comments/{1}/foo/{2}.json";
 
         #endregion
 
@@ -138,6 +140,8 @@ namespace RedditSharp
 
         public void ComposePrivateMessage(string subject, string body, string to)
         {
+            if (User == null)
+                throw new Exception("User can not be null.");
             var request = CreatePost(ComposeMessageUrl);
             WritePostBody(request.GetRequestStream(), new
             {
@@ -175,6 +179,35 @@ namespace RedditSharp
             var json = JObject.Parse(result);
             return new AuthenticatedUser(this, json);
             // TODO: Error
+        }
+
+        public Thing GetThingByFullname(string fullname)
+        {
+            var request = CreateGet(string.Format(GetThingUrl, fullname), true);
+            var response = request.GetResponse();
+            var data = GetResponseString(response.GetResponseStream());
+            var json = JToken.Parse(data);
+            return Thing.Parse(this, json["data"]["children"][0]);
+        }
+
+        public Comment GetComment(string subreddit, string name, string linkName)
+        {
+            try
+            {
+                if (linkName.StartsWith("t3_"))
+                    linkName = linkName.Substring(3);
+                if (name.StartsWith("t1_"))
+                    name = name.Substring(3);
+                var request = CreateGet(string.Format(GetCommentUrl, subreddit, linkName, name), true);
+                var response = request.GetResponse();
+                var data = GetResponseString(response.GetResponseStream());
+                var json = JToken.Parse(data);
+                return Thing.Parse(this, json[1]["data"]["children"][0]) as Comment;
+            }
+            catch (WebException e)
+            {
+                return null;
+            }
         }
 
         #region Helpers
