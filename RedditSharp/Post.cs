@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Authentication;
-using System.Text;
-using System.Web;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 
@@ -16,6 +14,8 @@ namespace RedditSharp
         private const string GetCommentsUrl = "/comments/{0}.json";
         private const string ApproveUrl = "/api/approve";
         private const string EditUserTextUrl = "/api/editusertext";
+        private const string HideUrl = "/api/hide";
+        private const string UnhideUrl = "/api/unhide";
 
         [JsonIgnore]
         private Reddit Reddit { get; set; }
@@ -141,6 +141,38 @@ namespace RedditSharp
             var data = Reddit.GetResponseString(response.GetResponseStream());
         }
 
+        public void Hide()
+        {
+            if (Reddit.User == null)
+                throw new AuthenticationException("No user logged in.");
+            var request = Reddit.CreatePost(HideUrl);
+            var stream = request.GetRequestStream();
+            Reddit.WritePostBody(stream, new
+            {
+                id = FullName,
+                uh = Reddit.User.Modhash
+            });
+            stream.Close();
+            var response = request.GetResponse();
+            var data = Reddit.GetResponseString(response.GetResponseStream());
+        }
+
+        public void Unhide()
+        {
+            if (Reddit.User == null)
+                throw new AuthenticationException("No user logged in.");
+            var request = Reddit.CreatePost(UnhideUrl);
+            var stream = request.GetRequestStream();
+            Reddit.WritePostBody(stream, new
+            {
+                id = FullName,
+                uh = Reddit.User.Modhash
+            });
+            stream.Close();
+            var response = request.GetResponse();
+            var data = Reddit.GetResponseString(response.GetResponseStream());
+        }
+
         public Comment[] GetComments()
         {
             var comments = new List<Comment>();
@@ -165,7 +197,7 @@ namespace RedditSharp
         {
             if (Reddit.User == null)
                 throw new Exception("No user logged in.");
-            if (!this.IsSelfPost)
+            if (!IsSelfPost)
                 throw new Exception("Submission to edit is not a self-post.");
 
             var request = Reddit.CreatePost(EditUserTextUrl);
@@ -173,14 +205,14 @@ namespace RedditSharp
             {
                 api_type = "json",
                 text = newText,
-                thing_id = this.FullName,
+                thing_id = FullName,
                 uh = Reddit.User.Modhash
             });
             var response = request.GetResponse();
             var result = Reddit.GetResponseString(response.GetResponseStream());
             JToken json = JToken.Parse(result);
             if (json["json"].ToString().Contains("\"errors\": []"))
-                this.SelfText = newText;
+                SelfText = newText;
             else
                 throw new Exception("Error editing text.");
         }
