@@ -53,6 +53,7 @@
     <Compile Include="CreatedThing.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="FlairTemplate.cs" />
+    <Compile Include="IWebAgent.cs" />
     <Compile Include="Listing.cs" />
     <Compile Include="ModeratorPermission.cs" />
     <Compile Include="ModeratorUser.cs" />
@@ -69,9 +70,11 @@
     <Compile Include="SubredditSettings.cs" />
     <Compile Include="SubredditStyle.cs" />
     <Compile Include="Thing.cs" />
+    <Compile Include="UnixTimeStamp.cs" />
     <Compile Include="UnixTimestampConverter.cs" />
     <Compile Include="VotableThing.cs" />
     <Compile Include="RateLimitException.cs" />
+    <Compile Include="WebAgent.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
