@@ -27,6 +27,7 @@ namespace RedditSharp
             return GetEnumerator();
         }
 
+#pragma warning disable 0693
         private class ListingEnumerator<T> : IEnumerator<T> where T : Thing
         {
             private Listing<T> Listing { get; set; }
@@ -74,7 +75,7 @@ namespace RedditSharp
                 var children = json["data"]["children"] as JArray;
                 CurrentPage = new Thing[children.Count];
                 for (int i = 0; i < CurrentPage.Length; i++)
-                    CurrentPage[i] = Thing.Parse(Listing.Reddit, children[i], Listing.WebAgent);
+                    CurrentPage[i] = Thing.Parse<T>(Listing.Reddit, children[i], Listing.WebAgent);
                 After = json["data"]["after"].Value<string>();
                 Before = json["data"]["before"].Value<string>();
             }
@@ -111,5 +112,6 @@ namespace RedditSharp
                 CurrentPage = new Thing[0];
             }
         }
+#pragma warning restore
     }
 }

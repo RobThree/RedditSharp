@@ -5,6 +5,7 @@ using System.Security.Authentication;
 using HtmlAgilityPack;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Net;
 
 namespace RedditSharp
 {
@@ -27,6 +28,8 @@ namespace RedditSharp
         private const string AcceptModeratorInviteUrl = "/api/accept_moderator_invite";
         private const string LeaveModerationUrl = "/api/unfriend";
         private const string BanUserUrl = "/api/friend";
+        private const string AddModeratorUrl = "/api/friend";
+        private const string AddContributorUrl = "/api/friend";
         private const string ModeratorsUrl = "/r/{0}/about/moderators.json";
         private const string FrontPageUrl = "/.json";
         private const string SubmitLinkUrl = "/api/submit";
@@ -37,6 +40,9 @@ namespace RedditSharp
 
         [JsonIgnore]
         private IWebAgent WebAgent { get; set; }
+
+        [JsonIgnore]
+        public Wiki Wiki { get; private set; }
 
         [JsonProperty("created")]
         [JsonConverter(typeof(UnixTimestampConverter))]
@@ -62,7 +68,8 @@ namespace RedditSharp
         [JsonProperty("title")]
         public string Title { get; set; }
         [JsonProperty("url")]
-        public string Url { get; set; }
+        [JsonConverter(typeof(UrlParser))]
+        public Uri Url { get; set; }
         [JsonIgnore]
         public string Name { get; set; }
 
@@ -78,8 +85,9 @@ namespace RedditSharp
         {
             Reddit = reddit;
             WebAgent = webAgent;
+            Wiki = new Wiki(reddit, this, webAgent);
             JsonConvert.PopulateObject(json["data"].ToString(), this, reddit.JsonSerializerSettings);
-            Name = Url;
+            Name = Url.ToString();
             if (Name.StartsWith("/r/"))
                 Name = Name.Substring(3);
             if (Name.StartsWith("r/"))
@@ -93,9 +101,10 @@ namespace RedditSharp
             {
                 DisplayName = "/r/all",
                 Title = "/r/all",
-                Url = "/r/all",
+                Url = new Uri("/r/all", UriKind.Relative),
                 Name = "all",
-                Reddit = reddit
+                Reddit = reddit,
+                WebAgent = reddit._webAgent
             };
             return rSlashAll;
         }
@@ -106,9 +115,10 @@ namespace RedditSharp
             {
                 DisplayName = "Front Page",
                 Title = "reddit: the front page of the internet",
-                Url = "/",
+                Url = new Uri("/", UriKind.Relative),
                 Name = "/",
-                Reddit = reddit
+                Reddit = reddit,
+                WebAgent = reddit._webAgent
             };
             return frontPage;
         }
@@ -333,6 +343,21 @@ namespace RedditSharp
             return new SubredditStyle(Reddit, this, json, WebAgent);
         }
 
+        public void AddModerator(string user)
+        {
+            var request = WebAgent.CreatePost(AddModeratorUrl);
+            WebAgent.WritePostBody(request.GetRequestStream(), new
+            {
+                api_type = "json",
+                uh = Reddit.User.Modhash,
+                r = Name,
+                type = "moderator",
+                name = user
+            });
+            var response = request.GetResponse();
+            var result = WebAgent.GetResponseString(response.GetResponseStream());
+        }
+
         public void AcceptModeratorInvite()
         {
             var request = WebAgent.CreatePost(AcceptModeratorInviteUrl);
@@ -385,32 +410,20 @@ namespace RedditSharp
         {
             return "/r/" + DisplayName;
         }
-        
-        /// <summary>
-        /// Submits a text post in the current subreddit using the logged-in user
-        /// </summary>
-        /// <param name="title">The title of the submission</param>
-        /// <param name="text">The raw markdown text of the submission</param>
-        public Post SubmitTextPost(string title, string text)
-        {
-            if (Reddit.User == null)
-                throw new Exception("No user logged in.");
-            var request = WebAgent.CreatePost(SubmitLinkUrl);
 
+        public void AddContributor(string user)
+        {
+            var request = WebAgent.CreatePost(AddContributorUrl);
             WebAgent.WritePostBody(request.GetRequestStream(), new
             {
                 api_type = "json",
-                kind = "self",
-                sr = Name,
-                text = text,
-                title = title,
-                uh = Reddit.User.Modhash
+                uh = Reddit.User.Modhash,
+                r = Name,
+                type = "contributor",
+                name = user
             });
             var response = request.GetResponse();
             var result = WebAgent.GetResponseString(response.GetResponseStream());
-            var json = JToken.Parse(result);
-            return new Post(Reddit, json["json"], WebAgent);
-            // TODO: Error
         }
 
         public void BanUser(string user, string reason)
@@ -432,32 +445,75 @@ namespace RedditSharp
             var result = WebAgent.GetResponseString(response.GetResponseStream());
         }
 
+        private Post Submit(SubmitData data)
+        {
+            if (Reddit.User == null)
+                throw new RedditException("No user logged in.");
+            var request = WebAgent.CreatePost(SubmitLinkUrl);
+
+            WebAgent.WritePostBody(request.GetRequestStream(), data);
+
+            var response = request.GetResponse();
+            var result = WebAgent.GetResponseString(response.GetResponseStream());
+            var json = JToken.Parse(result);
+
+            ICaptchaSolver solver = Reddit.CaptchaSolver;
+            if (json["json"]["errors"].Any() && json["json"]["errors"][0][0].ToString() == "BAD_CAPTCHA"
+                && solver != null)
+            {
+                data.iden = json["json"]["captcha"].ToString();
+                CaptchaResponse captchaResponse = solver.HandleCaptcha(new Captcha(data.iden));
+
+                // We throw exception due to this method being expected to return a valid Post object, but we cannot
+                // if we got a Captcha error.
+                if (captchaResponse.Cancel)
+                    throw new CaptchaFailedException("Captcha verification failed when submitting " + data.kind + " post");
+
+                data.captcha = captchaResponse.Answer;
+                return Submit(data);
+            }
+
+            return new Post(Reddit, json["json"], WebAgent);
+        }
+
         /// <summary>
         /// Submits a link post in the current subreddit using the logged-in user
         /// </summary>
         /// <param name="title">The title of the submission</param>
         /// <param name="url">The url of the submission link</param>
-        public Post SubmitPost(string title, string url)
+        public Post SubmitPost(string title, string url, string captchaId = "", string captchaAnswer = "")
         {
-            if (Reddit.User == null)
-                throw new Exception("No user logged in.");
-            var request = WebAgent.CreatePost(SubmitLinkUrl);
+            return
+                Submit(
+                    new LinkData
+                    {
+                        sr = Name,
+                        uh = Reddit.User.Modhash,
+                        title = title,
+                        url = url,
+                        iden = captchaId,
+                        captcha = captchaAnswer
+                    });
+        }
 
-            WebAgent.WritePostBody(request.GetRequestStream(), new
-            {
-                api_type = "json",
-                extension = "json",
-                kind = "link",
-                sr = Name,
-                title = title,
-                uh = Reddit.User.Modhash,
-                url = url
-            });
-            var response = request.GetResponse();
-            var result = WebAgent.GetResponseString(response.GetResponseStream());
-            var json = JToken.Parse(result);
-            return new Post(Reddit, json["json"], WebAgent);
-            // TODO: Error
+        /// <summary>
+        /// Submits a text post in the current subreddit using the logged-in user
+        /// </summary>
+        /// <param name="title">The title of the submission</param>
+        /// <param name="text">The raw markdown text of the submission</param>
+        public Post SubmitTextPost(string title, string text, string captchaId = "", string captchaAnswer = "")
+        {
+            return
+                Submit(
+                    new TextData
+                    {
+                        sr = Name,
+                        uh = Reddit.User.Modhash,
+                        title = title,
+                        text = text,
+                        iden = captchaId,
+                        captcha = captchaAnswer
+                    });
         }
     }
 }

@@ -65,7 +65,8 @@ namespace RedditSharp
         [JsonProperty("over_18")]
         public bool NSFW { get; set; }
         [JsonProperty("permalink")]
-        public string Permalink { get; set; }
+        [JsonConverter(typeof(UrlParser))]
+        public Uri Permalink { get; set; }
         [JsonProperty("score")]
         public int Score { get; set; }
         [JsonProperty("selftext")]
@@ -75,11 +76,13 @@ namespace RedditSharp
         [JsonProperty("subreddit")]
         public string Subreddit { get; set; }
         [JsonProperty("thumbnail")]
-        public string Thumbnail { get; set; }
+        [JsonConverter(typeof(UrlParser))]
+        public Uri Thumbnail { get; set; }
         [JsonProperty("title")]
         public string Title { get; set; }
         [JsonProperty("url")]
-        public string Url { get; set; }
+        [JsonConverter(typeof(UrlParser))]
+        public Uri Url { get; set; }
         [JsonProperty("num_reports")]
         public int? Reports { get; set; }
 
@@ -93,14 +96,17 @@ namespace RedditSharp
                 {
                     text = message,
                     thing_id = FullName,
-                    uh = Reddit.User.Modhash
+                    uh = Reddit.User.Modhash,
+                    api_type = "json"
                 });
             stream.Close();
             var response = request.GetResponse();
             var data = WebAgent.GetResponseString(response.GetResponseStream());
             var json = JObject.Parse(data);
-            var comment = json["jquery"].FirstOrDefault(i => i[0].Value<int>() == 18 && i[1].Value<int>() == 19);
-            return new Comment(Reddit, comment[3][0][0], WebAgent);
+            if (json["json"]["ratelimit"] != null)
+                throw new RateLimitException(TimeSpan.FromSeconds(json["json"]["ratelimit"].ValueOrDefault<double>()));
+            var comment = json["json"]["data"]["things"][0];
+            return new Comment(Reddit, comment, WebAgent, this);
         }
 
         public void Approve()
@@ -209,7 +215,7 @@ namespace RedditSharp
 
             var postJson = json.Last()["data"]["children"];
             foreach (var comment in postJson)
-                comments.Add(new Comment(Reddit, comment, WebAgent));
+                comments.Add(new Comment(Reddit, comment, WebAgent, this));
 
             return comments.ToArray();
         }

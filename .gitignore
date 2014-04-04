@@ -9,5 +9,8 @@ TestResults/
 *.mdf
 *.psess
 *.vsp
+
+# StyleCop files
+StyleCop.Cache
 *.nupkg
 packages/*/*

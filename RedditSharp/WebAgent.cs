@@ -1,7 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Web;
 
 namespace RedditSharp
@@ -30,9 +32,12 @@ namespace RedditSharp
 
         private static DateTime lastRequest = DateTime.MinValue;
 
-        public HttpWebRequest CreateRequest(string url, string method, bool prependDomain = true)
+        public HttpWebRequest CreateRequest(string url, string method)
         {
-            while (EnableRateLimit && (DateTime.Now - lastRequest).TotalSeconds < 2) ; // Rate limiting
+            var prependDomain = !Uri.IsWellFormedUriString(url, UriKind.Absolute);
+
+            while (EnableRateLimit && (DateTime.Now - lastRequest).TotalSeconds < 2)// Rate limiting
+                Thread.Sleep(250);
             lastRequest = DateTime.Now;
             HttpWebRequest request;
             if (prependDomain)
@@ -50,14 +55,14 @@ namespace RedditSharp
             return request;
         }
 
-        public HttpWebRequest CreateGet(string url, bool prependDomain = true)
+        public HttpWebRequest CreateGet(string url)
         {
-            return CreateRequest(url, "GET", prependDomain);
+            return CreateRequest(url, "GET");
         }
 
-        public HttpWebRequest CreatePost(string url, bool prependDomain = true)
+        public HttpWebRequest CreatePost(string url)
         {
-            var request = CreateRequest(url, "POST", prependDomain);
+            var request = CreateRequest(url, "POST");
             request.ContentType = "application/x-www-form-urlencoded";
             return request;
         }
@@ -72,7 +77,7 @@ namespace RedditSharp
         public void WritePostBody(Stream stream, object data, params string[] additionalFields)
         {
             var type = data.GetType();
-            var properties = type.GetProperties();
+            var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
             string value = "";
             foreach (var property in properties)
             {

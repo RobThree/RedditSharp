@@ -27,13 +27,23 @@ namespace TestRedditSharp
                     Console.WriteLine("Incorrect login.");
                 }
             }
-            var subreddit = reddit.GetSubreddit("pokemon");
-            var posts = subreddit.GetNew();
-            foreach (var post in posts.Take(25))
-                Console.WriteLine("/u/{0}: (+{1}-{2}:{3}) {4}", post.AuthorName, post.Upvotes, post.Downvotes, post.Score, post.Title);
-            var moderators = subreddit.GetModerators();
-            foreach (var mod in moderators)
-                Console.WriteLine("/u/{0} is a moderator of {1} with perms: {2}", mod.Name, subreddit, mod.Permissions);
+            Console.Write("Create post? (y/n) [n]: ");
+            var choice = Console.ReadLine();
+            if (!string.IsNullOrEmpty(choice) && choice.ToLower()[0] == 'y')
+            {
+                Console.Write("Type a subreddit name: ");
+                var subname = Console.ReadLine();
+                var sub = reddit.GetSubreddit(subname);
+                Console.WriteLine("Making test post");
+                var post = sub.SubmitTextPost("RedditSharp test", "This is a test post sent from RedditSharp");
+                Console.WriteLine("Submitted: {0}", post.Url);
+            }
+            else
+            {
+                var subreddit = Subreddit.GetRSlashAll(reddit);
+                foreach (var post in subreddit.GetPosts().Take(10))
+                    Console.WriteLine("\"{0}\" by {1}", post.Title, post.Author);
+            }
             Console.ReadKey(true);
         }
 
