@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
@@ -13,6 +11,9 @@ namespace RedditSharp
     {
         private const string AccessUrl = "https://ssl.reddit.com/api/v1/access_token";
         private const string OauthGetMeUrl = "https://oauth.reddit.com/api/v1/me";
+
+        public static string OAuthToken { get; set; }
+        public static string RefreshToken { get; set; }
 
         [Flags]
         public enum Scope
@@ -81,7 +82,7 @@ namespace RedditSharp
                 ServicePointManager.ServerCertificateValidationCallback = (s, c, ch, ssl) => true;
             _webAgent.Cookies = new CookieContainer();
 
-            var request = _webAgent.CreatePost(AccessUrl, false);
+            var request = _webAgent.CreatePost(AccessUrl);
 
             request.Headers["Authorization"] = "Basic " + Convert.ToBase64String(Encoding.Default.GetBytes(_clientId + ":" + _clientSecret));
             var stream = request.GetRequestStream();
@@ -109,7 +110,12 @@ namespace RedditSharp
             var result = _webAgent.GetResponseString(response.GetResponseStream());
             var json = JObject.Parse(result);
             if (json["access_token"] != null)
+            {
+                if (json["refresh_token"] != null)
+                    RefreshToken = json["refresh_token"].ToString();
+                OAuthToken = json["access_token"].ToString();
                 return json["access_token"].ToString();
+            }
             if (json["error"] != null)
             {
                 throw new AuthenticationException("Could not log in: " + json["error"]);
@@ -122,9 +128,10 @@ namespace RedditSharp
         /// </summary>
         /// <param name="accessToken">Obtained using GetOAuthToken</param>
         /// <returns></returns>
+        [Obsolete("Reddit.InitOrUpdateUser is preferred")]
         public AuthenticatedUser GetUser(string accessToken)
         {
-            var request = _webAgent.CreateGet(OauthGetMeUrl, false);
+            var request = _webAgent.CreateGet(OauthGetMeUrl);
             request.Headers["Authorization"] = String.Format("bearer {0}", accessToken);
             var response = (HttpWebResponse)request.GetResponse();
             var result = _webAgent.GetResponseString(response.GetResponseStream());

@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Linq;
 using System;
 
 namespace RedditSharp
@@ -13,7 +13,7 @@ namespace RedditSharp
                 case "t1":
                     return new Comment(reddit, json, webAgent, null);
                 case "t2":
-                    return new RedditUser(reddit, json, webAgent); 
+                    return new RedditUser(reddit, json, webAgent);
                 case "t3":
                     return new Post(reddit, json, webAgent);
                 case "t4":
@@ -43,19 +43,36 @@ namespace RedditSharp
         {
             if (json == null)
                 return;
-            var data = json["data"];
+            var data = json["name"] == null ? json["data"] : json;
             FullName = data["name"].ValueOrDefault<string>();
             Id = data["id"].ValueOrDefault<string>();
             Kind = json["kind"].ValueOrDefault<string>();
+            FetchedAt = DateTime.Now;
         }
 
         public string Shortlink
         {
             get { return "http://redd.it/" + Id; }
         }
-        
+
         public string Id { get; set; }
         public string FullName { get; set; }
         public string Kind { get; set; }
+
+        /// <summary>
+        /// The time at which this object was fetched from reddit servers.
+        /// </summary>
+        public DateTime FetchedAt { get; private set; }
+
+        /// <summary>
+        /// Gets the time since last fetch from reddit servers.
+        /// </summary>
+        public TimeSpan TimeSinceFetch
+        {
+            get
+            {
+                return DateTime.Now - FetchedAt;
+            }
+        }
     }
 }
