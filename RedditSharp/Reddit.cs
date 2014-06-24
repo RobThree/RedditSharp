@@ -10,7 +10,7 @@ namespace RedditSharp
     /// <summary>
     /// Class to communicate with Reddit.com
     /// </summary>
-    public partial class Reddit
+    public class Reddit
     {
         #region Constant Urls
 
@@ -53,6 +53,15 @@ namespace RedditSharp
         /// The authenticated user for this instance.
         /// </summary>
         public AuthenticatedUser User { get; set; }
+
+        /// <summary>
+        /// Sets the Rate Limiting Mode of the underlying WebAgent
+        /// </summary>
+        public WebAgent.RateLimitMode RateLimit
+        {
+            get { return WebAgent.RateLimit; }
+            set { WebAgent.RateLimit = value; }
+        }
 
         internal JsonSerializerSettings JsonSerializerSettings { get; set; }
 
@@ -196,6 +205,14 @@ namespace RedditSharp
             return GetThing<Subreddit>(string.Format(SubredditAboutUrl, name));
         }
 
+        public Domain GetDomain(string domain)
+        {
+            if (!domain.StartsWith("http://") && !domain.StartsWith("https://"))
+                domain = "http://" + domain;
+            var uri = new Uri(domain);
+            return new Domain(this, uri, _webAgent);
+        }
+
         public JToken GetToken(Uri uri)
         {
             var url = uri.AbsoluteUri;
@@ -210,6 +227,7 @@ namespace RedditSharp
 
             return json[0]["data"]["children"].First;
         }
+
         public Post GetPost(Uri uri)
         {
             return new Post(this, GetToken(uri), _webAgent);
