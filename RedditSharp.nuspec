@@ -2,7 +2,7 @@
 <package xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
  <metadata xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
    <id>RedditSharp</id>
-   <version>1.0.12</version>
+   <version>1.0.13</version>
    <authors>SirCmpwn</authors>
    <owners>RobIII</owners>
    <licenseUrl>https://github.com/SirCmpwn/RedditSharp/blob/master/LICENSE</licenseUrl>
