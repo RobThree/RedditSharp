@@ -28,6 +28,8 @@ namespace RedditSharp
         private const string GetPostUrl = "{0}.json";
         private const string DomainUrl = "www.reddit.com";
         private const string OAuthDomainUrl = "oauth.reddit.com";
+        private const string SearchUrl = "/search.json?q={0}&restrict_sr=off&sort={1}&t={2}";
+        private const string UrlSearchPattern = "url:'{0}'";
 
         #endregion
 
@@ -93,21 +95,19 @@ namespace RedditSharp
             CaptchaSolver = new ConsoleCaptchaSolver();
         }
 
-        public Reddit(WebAgent.RateLimitMode limitMode)
+        public Reddit(WebAgent.RateLimitMode limitMode) : this()
         {
             WebAgent.UserAgent = "";
             WebAgent.RateLimit = limitMode;
             WebAgent.RootDomain = "www.reddit.com";
         }
 
-        public Reddit(string username, string password, bool useSsl = true)
-            : this()
+        public Reddit(string username, string password, bool useSsl = true) : this()
         {
             LogIn(username, password, useSsl);
         }
 
-        public Reddit(string accessToken)
-            : this()
+        public Reddit(string accessToken) : this()
         {
             WebAgent.Protocol = "https";
             WebAgent.RootDomain = OAuthDomainUrl;
@@ -317,6 +317,17 @@ namespace RedditSharp
             {
                 return null;
             }
+        }
+
+        public Listing<T> SearchByUrl<T>(string url) where T : Thing
+        {
+            var urlSearchQuery = string.Format(UrlSearchPattern, url);
+            return Search<T>(urlSearchQuery);
+        }
+
+        public Listing<T> Search<T>(string query) where T : Thing
+        {
+            return new Listing<T>(this, string.Format(SearchUrl, query, "relevance", "all"), _webAgent);
         }
 
         #region Helpers
