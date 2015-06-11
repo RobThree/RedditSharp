@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Authentication;
 using RedditSharp.Things;
+using System.Threading.Tasks;
 
 namespace RedditSharp
 {
@@ -24,7 +25,7 @@ namespace RedditSharp
         private const string ComposeMessageUrl = "/api/compose";
         private const string RegisterAccountUrl = "/api/register";
         private const string GetThingUrl = "/api/info.json?id={0}";
-        private const string GetCommentUrl = "/r/{0}/comments/{1}/foo/{2}.json";
+        private const string GetCommentUrl = "/r/{0}/comments/{1}/foo/{2}";
         private const string GetPostUrl = "{0}.json";
         private const string DomainUrl = "www.reddit.com";
         private const string OAuthDomainUrl = "oauth.reddit.com";
@@ -206,6 +207,20 @@ namespace RedditSharp
             return GetThing<Subreddit>(string.Format(SubredditAboutUrl, name));
         }
 
+        /// <summary>
+        /// Returns the subreddit. 
+        /// </summary>
+        /// <param name="name">The name of the subreddit</param>
+        /// <returns>The Subreddit by given name</returns>
+        public async Task<Subreddit> GetSubredditAsync(string name)
+        {
+            if (name.StartsWith("r/"))
+                name = name.Substring(2);
+            if (name.StartsWith("/r/"))
+                name = name.Substring(3);
+            return  await GetThingAsync<Subreddit>(string.Format(SubredditAboutUrl, name));
+        }
+
         public Domain GetDomain(string domain)
         {
             if (!domain.StartsWith("http://") && !domain.StartsWith("https://"))
@@ -307,16 +322,26 @@ namespace RedditSharp
                     linkName = linkName.Substring(3);
                 if (name.StartsWith("t1_"))
                     name = name.Substring(3);
-                var request = _webAgent.CreateGet(string.Format(GetCommentUrl, subreddit, linkName, name));
-                var response = request.GetResponse();
-                var data = _webAgent.GetResponseString(response.GetResponseStream());
-                var json = JToken.Parse(data);
-                return Thing.Parse(this, json[1]["data"]["children"][0], _webAgent) as Comment;
+
+                var url = string.Format(GetCommentUrl, subreddit, linkName, name);
+                return GetComment(new Uri(url));
             }
             catch (WebException)
             {
                 return null;
             }
+        }
+
+        public Comment GetComment(Uri uri)
+        {
+            var url = string.Format(GetPostUrl, uri.AbsoluteUri);
+            var request = _webAgent.CreateGet(url);
+            var response = request.GetResponse();
+            var data = _webAgent.GetResponseString(response.GetResponseStream());
+            var json = JToken.Parse(data);
+            
+            var sender = new Post().Init(this, json[0]["data"]["children"][0], _webAgent);
+            return new Comment().Init(this, json[1]["data"]["children"][0], _webAgent, sender);
         }
 
         public Listing<T> SearchByUrl<T>(string url) where T : Thing
@@ -331,6 +356,16 @@ namespace RedditSharp
         }
 
         #region Helpers
+
+        protected async internal Task<T>  GetThingAsync<T>(string url) where T : Thing
+        {
+            var request = _webAgent.CreateGet(url);
+            var response = request.GetResponse();
+            var data = _webAgent.GetResponseString(response.GetResponseStream());
+            var json = JToken.Parse(data);
+            var ret =  await Thing.ParseAsync(this, json, _webAgent);
+            return (T)ret;
+        }
 
         protected internal T GetThing<T>(string url) where T : Thing
         {
