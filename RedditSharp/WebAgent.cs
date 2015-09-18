@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Web;
@@ -41,6 +42,10 @@ namespace RedditSharp
             /// Limits requests to one every two seconds
             /// </summary>
             Pace,
+            /// <summary>
+            /// Restricts requests to five per ten seconds
+            /// </summary>
+            SmallBurst,
             /// <summary>
             /// Restricts requests to thirty per minute
             /// </summary>
@@ -133,6 +138,7 @@ namespace RedditSharp
 
         }
 
+        [MethodImpl(MethodImplOptions.Synchronized)]
         private static void EnforceRateLimit()
         {
             switch (RateLimit)
@@ -142,6 +148,18 @@ namespace RedditSharp
                         Thread.Sleep(250);
                     _lastRequest = DateTime.UtcNow;
                     break;
+                case RateLimitMode.SmallBurst:
+                    if (_requestsThisBurst == 0)//this is first request
+                        _burstStart = DateTime.UtcNow;
+                    if (_requestsThisBurst >= 5) //limit has been reached
+                    {
+                        while ((DateTime.UtcNow - _burstStart).TotalSeconds < 10)
+                            Thread.Sleep(250);
+                        _burstStart = DateTime.UtcNow;
+                        _requestsThisBurst = 0;
+                    }
+                    _requestsThisBurst++;
+                    break;
                 case RateLimitMode.Burst:
                     if (_requestsThisBurst == 0)//this is first request
                         _burstStart = DateTime.UtcNow;
@@ -150,6 +168,7 @@ namespace RedditSharp
                         while ((DateTime.UtcNow - _burstStart).TotalSeconds < 60)
                             Thread.Sleep(250);
                         _burstStart = DateTime.UtcNow;
+                        _requestsThisBurst = 0;
                     }
                     _requestsThisBurst++;
                     break;
