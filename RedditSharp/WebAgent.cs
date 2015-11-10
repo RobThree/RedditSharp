@@ -73,6 +73,28 @@ namespace RedditSharp
         private static DateTime _lastRequest;
         private static DateTime _burstStart;
         private static int _requestsThisBurst;
+        /// <summary>
+        /// UTC DateTime of last request made to Reddit API
+        /// </summary>
+        public DateTime LastRequest 
+        {
+            get { return _lastRequest; }
+        }
+        /// <summary>
+        /// UTC DateTime of when the last burst started
+        /// </summary>
+        public DateTime BurstStart 
+        {
+            get { return _burstStart; }
+        }
+        /// <summary>
+        /// Number of requests made during the current burst 
+        /// </summary>
+        public int RequestsThisBurst 
+        {
+            get { return _requestsThisBurst; }
+        }
+
 
         public JToken CreateAndExecuteRequest(string url)
         {
@@ -105,34 +127,42 @@ namespace RedditSharp
         public JToken ExecuteRequest(HttpWebRequest request)
         {
             EnforceRateLimit();
-            var response = request.GetResponse();
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             var result = GetResponseString(response.GetResponseStream());
 
-            var json = JToken.Parse(result);
-            try
+            JToken json;
+            if (!string.IsNullOrEmpty(result))
             {
-                if (json["json"] != null)
+                json = JToken.Parse(result);
+                try
                 {
-                    json = json["json"]; //get json object if there is a root node
-                }
-                if (json["error"] != null)
-                {
-                    switch (json["error"].ToString())
+                    if (json["json"] != null)
                     {
-                        case "404":
-                            throw new Exception("File Not Found");
-                        case "403":
-                            throw new Exception("Restricted");
-                        case "invalid_grant":
-                            //Refresh authtoken
-                            //AccessToken = authProvider.GetRefreshToken();
-                            //ExecuteRequest(request);
-                            break;
+                        json = json["json"]; //get json object if there is a root node
+                    }
+                    if (json["error"] != null)
+                    {
+                        switch (json["error"].ToString())
+                        {
+                            case "404":
+                                throw new Exception("File Not Found");
+                            case "403":
+                                throw new Exception("Restricted");
+                            case "invalid_grant":
+                                //Refresh authtoken
+                                //AccessToken = authProvider.GetRefreshToken();
+                                //ExecuteRequest(request);
+                                break;
+                        }
                     }
                 }
+                catch
+                {
+                }
             }
-            catch
+            else
             {
+                json = JToken.Parse("{'method':'" + response.Method + "','uri':'" + response.ResponseUri.AbsoluteUri + "','status':'" + response.StatusCode.ToString() + "'}");
             }
             return json;
 
@@ -149,8 +179,11 @@ namespace RedditSharp
                     _lastRequest = DateTime.UtcNow;
                     break;
                 case RateLimitMode.SmallBurst:
-                    if (_requestsThisBurst == 0)//this is first request
+                    if (_requestsThisBurst == 0 || (DateTime.UtcNow - _burstStart).TotalSeconds >= 10) //this is first request OR the burst expired
+                    {
                         _burstStart = DateTime.UtcNow;
+                        _requestsThisBurst = 0;
+                    }
                     if (_requestsThisBurst >= 5) //limit has been reached
                     {
                         while ((DateTime.UtcNow - _burstStart).TotalSeconds < 10)
@@ -158,11 +191,15 @@ namespace RedditSharp
                         _burstStart = DateTime.UtcNow;
                         _requestsThisBurst = 0;
                     }
+                    _lastRequest = DateTime.UtcNow;
                     _requestsThisBurst++;
                     break;
                 case RateLimitMode.Burst:
-                    if (_requestsThisBurst == 0)//this is first request
+                    if (_requestsThisBurst == 0 || (DateTime.UtcNow - _burstStart).TotalSeconds >= 60) //this is first request OR the burst expired
+                    {
                         _burstStart = DateTime.UtcNow;
+                        _requestsThisBurst = 0;
+                    }
                     if (_requestsThisBurst >= 30) //limit has been reached
                     {
                         while ((DateTime.UtcNow - _burstStart).TotalSeconds < 60)
@@ -170,6 +207,7 @@ namespace RedditSharp
                         _burstStart = DateTime.UtcNow;
                         _requestsThisBurst = 0;
                     }
+                    _lastRequest = DateTime.UtcNow;
                     _requestsThisBurst++;
                     break;
             }
